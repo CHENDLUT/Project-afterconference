@@ -1,30 +1,30 @@
+from scipy import sparse,spatial
 import numpy as np
-import Optproblem
-import Mathproblem
-from shapely.geometry import Point, LineString, Polygon
-class Domain:
-    def __init__(self, vertex):
-        self.vertex = vertex
-        self.poly = Polygon(self.vertex)
-    def verify(self):
-        return self.poly.convex_hull.area == self.poly.area
-    def size(self):
-        vertex = np.array(self.vertex)
-        width = max(vertex[:,0])
-        height = max(vertex[:,1])
-        return width, height
+
+class Load:
+    def __init__(self, position, magnitude, loadcase):
+        self.position = position
+        self.magnitude = magnitude
+        self.loadcase = loadcase
 
 class Support:
     def __init__(self, position, condition):
         self.position = position
         self.condition = condition
         
-class Load:
-    def __init__(self, position, magnitude, loadcase):
-        self.position = position
-        self.magnitude = magnitude
+class Domain:
+    def __init__(self, vertex, step1):
+        self.vertex = vertex
+        self.convex = True
+        self.length = max(np.array(vertex)[:,0])
+        self.width = max(np.array(vertex)[:,1])
+        self.height = max(np.array(vertex)[:,2])
+        self.polylist = [[(i, 0, 0),(i, self.width, 0),(i,self.width,self.height),(i, 0, self.height)] for i in np.arange(0,self.length+step1,step1)]
+    def verify(self,area):
+        hull = spatial.ConvexHull(np.array(self.vertex))
+        self.convex = True if hull.area == area else False
         
 class Material:
-    def __init__(self, lc, lt):
+    def __init__(self,lc, lt):
         self.lc = lc
         self.lt = lt
