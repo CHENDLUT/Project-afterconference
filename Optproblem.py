@@ -40,7 +40,7 @@ class Groundstructure:
     def createpoints(self):
         width, height = self.domain.size()
         step1, step2 = self.step1, self.step2
-        xv, yv = np.meshgrid(range(0, width+step1, step1), range(0, height+step2, step2))
+        xv, yv = np.meshgrid(np.arange(0, width+self.step1, self.step1), np.arange(0, height+self.step2, self.step2))
         pts = [Point(xv.flat[i], yv.flat[i]) for i in range(xv.size)]
         points = np.array([[i, pt.x, pt.y] for i,pt in enumerate(pts) if self.domain.poly.intersects(pt)])
         return points
@@ -49,7 +49,7 @@ class Groundstructure:
         ML = []
         for i,j in itertools.combinations(range(len(points)), 2):
             mem = Member(points[j], points[i], self.material)
-            if gcd(int(abs(mem.calcomponent()[0])), int(abs(mem.calcomponent()[1]))) == 1:
+            if gcd(int(abs(int(mem.calcomponent()[0]/self.step1))), int(abs(int(mem.calcomponent()[1]/self.step2)))) == 1:
                 ML.append(mem)
         return ML
     
