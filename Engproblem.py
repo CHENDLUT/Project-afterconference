@@ -1,30 +1,38 @@
+from scipy import sparse,spatial
 import numpy as np
-import Optproblem
-import Mathproblem
-from shapely.geometry import Point, LineString, Polygon
-class Domain:
+
+class Polyhedron:
     def __init__(self, vertex):
         self.vertex = vertex
-        self.poly = Polygon(self.vertex)
+        self.hull = spatial.ConvexHull(np.array(vertex))
+        self.convex = True
     def verify(self):
-        return self.poly.convex_hull.area == self.poly.area
-    def size(self):
-        vertex = np.array(self.vertex)
-        width = max(vertex[:,0])
-        height = max(vertex[:,1])
-        return width, height
+        self.convex = True if self.hull.vertices.size == len(self.vertex) else False
+    def intersect(self, point): # verify whether the point is in the polyhedron but it can only solve the convex optimization temporarily
+        if self.convex == True: 
+            vt1 = np.array(self.vertex)+[point.x,point.y,point.z]
+            pt_hull = spatial.ConvexHull(vt1)
+            return True if self.hull.area == pt_hull.area else False
+
+class Load:
+    def __init__(self, position, magnitude, loadcase):
+        self.position = position
+        self.magnitude = magnitude
+        self.loadcase = loadcase
 
 class Support:
     def __init__(self, position, condition):
         self.position = position
         self.condition = condition
         
-class Load:
-    def __init__(self, position, magnitude, loadcase):
-        self.position = position
-        self.magnitude = magnitude
-        
+class Domain:
+    def __init__(self, vertex):
+        self.polyhedron = Polyhedron(vertex)
+        self.length = max(np.array(vertex)[:,0])
+        self.width = max(np.array(vertex)[:,1])
+        self.height = max(np.array(vertex)[:,2])
+
 class Material:
-    def __init__(self, lc, lt):
+    def __init__(self,lc, lt):
         self.lc = lc
         self.lt = lt

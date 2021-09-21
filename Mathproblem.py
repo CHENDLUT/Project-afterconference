@@ -1,27 +1,28 @@
-import numpy as np
 import cvxpy as cvx
-import Engproblem
-import Optproblem
-
-class Mathproblem:
-    def __init__(self, LV, B, LDV, SPV, lc, lt):
-        self.LV = LV
+import numpy as np
+class Mathprob:
+    def __init__(self, B):
         self.B = B
-        self.LDV = LDV
-        self.SPV = SPV
-        self.lc = lc
-        self.lt = lt
-    def solve(self):
-        a = cvx.Variable(len(self.LV))
-        obj = cvx.Minimize(self.LV * a)
-        q, eqn, cons = [], [], [a>=0]
-        LDV = [self.LDV]
-        for k, fk in enumerate(LDV):
-            q.append(cvx.Variable(len(self.LV)))
-            eqn.append(self.B * q[k] == fk * self.SPV)
-            cons.extend([eqn[k], q[k] >= -self.lc * a, q[k] <= self.lt * a])
+        self.lengthlist = []
+        self.qlist = []
+        self.ulist = []
+        self.arealist = []
+        self.result = 0
+    def solveLP(self, NDL, TML, dof, f, lc, lt, jc): # solve the linear programing problem
+        self.lengthlist = [mem.length+jc for mem in TML]
+        a = cvx.Variable(len(TML))
+        obj = cvx.Minimize(np.transpose(self.lengthlist) * a)
+        q, eqn, cons= [], [], [a>=0]
+        for i in range(len(TML)):
+            cons.extend([a[i]<=TML[i].area])
+        for k, fk in enumerate(f):
+            q.append(cvx.Variable(len(TML)))
+            eqn.append(self.B * q[k] == fk * dof)
+            cons.extend([eqn[k], q[k] >= -lc * a, q[k] <= lt * a])
         prob = cvx.Problem(obj, cons)
-        vol = prob.solve()
-        q = [np.array(qi.value).flatten() for qi in q]
-        a = np.array(a.value).flatten()
-        return vol, q, a
+        self.result = prob.solve(solver = cvx.MOSEK,mosek_params={"MSK_IPAR_INTPNT_BASIS":0})
+        self.qlist = [np.array(qi.value).flatten() for qi in q]
+        self.arealist = np.array(a.value).flatten()
+        self.ulist = [-np.array(eqnk.dual_value).flatten() for eqnk in eqn]
+        
+        
