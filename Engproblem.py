@@ -24,13 +24,16 @@ class Support:
     def __init__(self, position, condition):
         self.position = position
         self.condition = condition
-        
+
 class Domain:
     def __init__(self, vertex):
         self.polyhedron = Polyhedron(vertex)
         self.length = max(np.array(vertex)[:,0])
         self.width = max(np.array(vertex)[:,1])
         self.height = max(np.array(vertex)[:,2])
+        self.measure = self.calmeasure()
+    def calmeasure(self):
+        return np.sqrt(self.length**2+self.width**2+self.height**2)/1000
 
 class Material:
     def __init__(self,lc, lt):

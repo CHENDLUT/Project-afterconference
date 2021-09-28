@@ -6,7 +6,7 @@ import numpy as np
 if __name__ == '__main__':
     ## Solve engineering problem
     l, w, h = 10.0, 10.0, 10.0
-    lc, lt ,step1, step2, step3, prearea, jc = 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0
+    lc, lt ,step1, step2, step3, prearea, jc = 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0 
     fl = 1.001*np.sqrt(step1**2+step2**2+step3**2)
     vt = [[0,0,0],[l,0,0],[l,w,0],[0,w,0],[0,0,h],[l,0,h],[l,w,h],[0,w,h]] #set vertex coordinates
     material = Material(lc, lt)

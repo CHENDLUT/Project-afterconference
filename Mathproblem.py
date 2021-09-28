@@ -20,7 +20,8 @@ class Mathprob:
             eqn.append(self.B * q[k] == fk * dof)
             cons.extend([eqn[k], q[k] >= -lc * a, q[k] <= lt * a])
         prob = cvx.Problem(obj, cons)
-        self.result = prob.solve(solver = cvx.MOSEK,mosek_params={"MSK_IPAR_INTPNT_BASIS":0})
+        self.result = prob.solve()
+        '''(solver = cvx.MOSEK,mosek_params={"MSK_IPAR_INTPNT_BASIS":0})'''
         self.qlist = [np.array(qi.value).flatten() for qi in q]
         self.arealist = np.array(a.value).flatten()
         self.ulist = [-np.array(eqnk.dual_value).flatten() for eqnk in eqn]

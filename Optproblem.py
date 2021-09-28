@@ -7,6 +7,19 @@ from math import gcd,ceil
 import matplotlib.pyplot as plt
 from scipy import sparse
 
+def calcB(NDL,TML,dof):
+    m, n1, n2 = len(TML), np.array([int(mem.start.number) for mem in TML]), np.array([int(mem.end.number) for mem in TML])
+    Nd = np.array([NDL[i].position for i in range(len(NDL))])
+    l, X, Y, Z = np.array([mem.length for mem in TML]), Nd[n2,0]-Nd[n1,0], Nd[n2,1]-Nd[n1,1], Nd[n2,2]-Nd[n1,2]
+    d0, d1, d2, d3, d4, d5 = dof[n1*3], dof[n1*3+1], dof[n1*3+2], dof[n2*3], dof[n2*3+1], dof[n2*3+2]
+    s = np.concatenate((-X/l * d0, -Y/l * d1, -Z/l*d2, X/l * d3, Y/l * d4, Z/l*d5))
+    r = np.concatenate((n1*3, n1*3+1, n1*3+2, n2*3, n2*3+1, n2*3+2))
+    c = np.concatenate((np.arange(m), np.arange(m), np.arange(m), np.arange(m), np.arange(m), np.arange(m)))
+    return sparse.coo_matrix((s, (r, c)), shape = (len(NDL)*3, m))
+
+def distance(position1, position2):
+    return np.sqrt(np.sum([(np.array(position1)-np.array(position2))[i]**2 for i in range(3)]))
+
 class Node:
     def __init__(self, number, position):
         self.number = number
@@ -16,12 +29,12 @@ class Node:
         self.z = position[2]
         self.load = []
         self.support = Support(position, [1,1,1])
-    def updatenode(self, supports, loads): # update the condition of load and support of the node
+    def updatenode(self, supports, loads, measure): # update the condition of load and support of the node
         for sp in supports:
-            if (np.sqrt(np.sum([(np.array(self.position)-np.array(sp.position))[i]**2 for i in range(3)]))<=1e-6):
+            if distance(self.position,sp.position)<=measure:
                 self.support = sp
         for ld in loads:
-            if (np.sqrt(np.sum([(np.array(self.position)-np.array(ld.position))[i]**2 for i in range(3)]))<=1e-6):
+            if distance(self.position,ld.position)<=measure:
                 self.load.append(ld)   
 
 class Member:
@@ -36,12 +49,12 @@ class Member:
     def calcomponent(self): # calculate the x,y,z components of the member
         return (np.array(self.end.position)-np.array(self.start.position))
     def callength(self): # calculate the length of the member
-        return np.sqrt(np.sum([(np.array(self.end.position)-np.array(self.start.position))[i]**2 for i in range(3)]))
+        return distance(self.end.position,self.start.position)
     def contain(self, nd): # verify whether this member contains the specific node
         if self.start.position == nd.position or self.end.position == nd.position: return False
         else:
             c1,c2 = np.array(nd.position)-np.array(self.start.position), np.array(self.end.position)-np.array(nd.position)
-            L1,L2 = np.sqrt(np.sum([(np.array(self.start.position)-np.array(nd.position))[i]**2 for i in range(3)])), np.sqrt(np.sum([(np.array(self.end.position)-np.array(nd.position))[i]**2 for i in range(3)]))
+            L1,L2 = distance(self.start.position,nd.position), distance(self.end.position,nd.position)
             direction1, direction2 = [c1[0]/L1,c1[1]/L1,c1[2]/L1], [c2[0]/L2,c2[1]/L2,c2[2]/L2]
             return True if (direction1[0]-direction2[0]<=1e-6 and direction1[1]-direction2[1]<=1e-6 and direction1[2]-direction2[2]<=1e-6) else False
     def updatearea(self, a): # update the area of the member
@@ -74,7 +87,7 @@ class Groundstructure:
             if self.domain.polyhedron.intersect(pt):
                 self.NDL.append(Node(len(self.NDL), [pt.x, pt.y, pt.z]))
         for nd in self.NDL:
-            nd.updatenode(self.supports, self.loads)
+            nd.updatenode(self.supports, self.loads, self.domain.measure)
     def createmembers(self): # create the members based on the grid
         for i, j in itertools.combinations(range(len(self.NDL)),2):
             mem = Member(self.NDL[j], self.NDL[i], self.material)
@@ -87,20 +100,26 @@ class Groundstructure:
             pm.exist = True
             pm.area = self.prearea
             for nd in self.NDL:
-                if np.sqrt(np.sum([(np.array(pm.start.position)-np.array(nd.position))[i]**2 for i in range(3)]))<=1e-6:pm.start.number = nd.number
-                elif np.sqrt(np.sum([(np.array(pm.end.position)-np.array(nd.position))[i]**2 for i in range(3)]))<=1e-6:pm.end.number = nd.number
+                if distance(pm.start.position,nd.position)<=self.domain.measure:pm.start.number = nd.number
+                elif distance(pm.end.position,nd.position)<=self.domain.measure:pm.end.number = nd.number
             if pm.start.number<0:
                 pm.start.number = len(self.NDL)
                 self.NDL.append(pm.start)
                 for nd in self.NDL:
                     mem = Member(pm.start, nd, self.material)
-                    if mem.contain(nd) == False:self.ML.append(mem)
-            elif pm.end.number<0:
+                    for nd1 in self.NDL:
+                        if mem.contain(nd) == False or self.jc!=0:self.ML.append(mem)
+            if pm.end.number<0:
                 pm.end.number = len(self.NDL)
                 self.NDL.append(pm.end)
                 for nd in self.NDL:
                     mem = Member(pm.end, nd, self.material)
-                    if mem.contain(nd) == False or self.jc!=0:self.ML.append(mem)
+                    update = True
+                    for nd1 in self.NDL:
+                        if mem.contain(nd1) == True:
+                            update = False
+                    if self.jc!=0 or update:
+                        self.ML.append(mem)
     def createpotentials(self): # update the exist of members in member list and sort out the initial members and potential members
         self.TML, self.PML = [], []
         for pm in self.Pre_member:
@@ -138,25 +157,9 @@ class Optprob:
             self.f[i] = np.array(self.f[i]).flatten()
         self.f, self.dof = np.array(self.f), np.array(self.dof).flatten()
     def MatrixB(self): # this matrix serves as a coefficient matrix of groundstructure members
-        NDL, TML = self.groundstructure.NDL, self.groundstructure.TML
-        m, n1, n2 = len(TML), np.array([int(mem.start.number) for mem in TML]), np.array([int(mem.end.number) for mem in TML])
-        Nd = np.array([NDL[i].position for i in range(len(NDL))])
-        l, X, Y, Z = np.array([mem.length for mem in TML]), Nd[n2,0]-Nd[n1,0], Nd[n2,1]-Nd[n1,1], Nd[n2,2]-Nd[n1,2]
-        d0, d1, d2, d3, d4, d5 = self.dof[n1*3], self.dof[n1*3+1], self.dof[n1*3+2], self.dof[n2*3], self.dof[n2*3+1], self.dof[n2*3+2]
-        s = np.concatenate((-X/l * d0, -Y/l * d1, -Z/l*d2, X/l * d3, Y/l * d4, Z/l*d5))
-        r = np.concatenate((n1*3, n1*3+1, n1*3+2, n2*3, n2*3+1, n2*3+2))
-        c = np.concatenate((np.arange(m), np.arange(m), np.arange(m), np.arange(m), np.arange(m), np.arange(m)))
-        self.B = sparse.coo_matrix((s, (r, c)), shape = (len(NDL)*3, m))
-    def judgeMatrixB(self): # this matrix serves as a coefficient matrix of potential members 
-        NDL, PML = self.groundstructure.NDL, self.groundstructure.PML
-        m, n1, n2 = len(PML), np.array([int(mem.start.number) for mem in PML]), np.array([int(mem.end.number) for mem in PML])
-        Nd = np.array([NDL[i].position for i in range(len(NDL))])
-        l, X, Y, Z = np.array([mem.length for mem in PML]), Nd[n2,0]-Nd[n1,0], Nd[n2,1]-Nd[n1,1], Nd[n2,2]-Nd[n1,2]
-        d0, d1, d2, d3, d4, d5 = self.dof[n1*3], self.dof[n1*3+1], self.dof[n1*3+2], self.dof[n2*3], self.dof[n2*3+1], self.dof[n2*3+2]
-        s = np.concatenate((-X/l * d0, -Y/l * d1, -Z/l*d2, X/l * d3, Y/l * d4, Z/l*d5))
-        r = np.concatenate((n1*3, n1*3+1, n1*3+2, n2*3, n2*3+1, n2*3+2))
-        c = np.concatenate((np.arange(m), np.arange(m), np.arange(m), np.arange(m), np.arange(m),np.arange(m)))
-        self.judgeB = (sparse.coo_matrix((s, (r, c)), shape = (len(NDL)*3, m))).tocsc()
+        self.B = calcB(self.groundstructure.NDL,self.groundstructure.TML,self.dof)
+    def judgeMatrixB(self): # this matrix serves as a coefficient matrix of potential members
+        self.judgeB = calcB(self.groundstructure.NDL,self.groundstructure.PML,self.dof)
     def solve(self): # solve the optimization problem through iterative method
         for itr in range(1,100):
             if self.con == True:
